@@ -208,6 +208,21 @@
             border: 1.5px solid var(--line); border-radius: 8px; padding: 7px 8px;
         }
         .style-opts .chk { font-weight: 500; }
+        .color-opts { display: flex; align-items: center; gap: 12px; flex-wrap: wrap; margin-top: 14px; }
+        .color-opts .opt-title { font-size: 13.5px; font-weight: 600; }
+        .swatches { display: flex; gap: 10px; }
+        .swatch {
+            width: 26px; height: 26px; padding: 0; border-radius: 50%; cursor: pointer;
+            background: var(--c); border: 2px solid #fff; box-shadow: 0 0 0 1.5px #C5CDDD;
+            transition: transform .12s;
+        }
+        .swatch:hover { transform: scale(1.12); }
+        .swatch[aria-checked="true"] { box-shadow: 0 0 0 2px #fff, 0 0 0 4.5px var(--c); }
+        .custom-color { display: inline-flex; align-items: center; gap: 8px; font-size: 13px; color: #5b6783; cursor: pointer; }
+        .custom-color input[type="color"] {
+            width: 36px; height: 30px; padding: 2px; background: #fff; cursor: pointer;
+            border: 1.5px solid var(--line); border-radius: 8px;
+        }
         .shift-opts {
             display: flex; align-items: center; gap: 12px; flex-wrap: wrap;
             margin-top: 14px; padding-top: 14px; border-top: 1px dashed var(--line);
@@ -390,6 +405,18 @@
                 <label class="chk"><input type="checkbox" id="titleChk" checked> Dòng đầu là tiêu đề</label>
                 <label>Tiêu đề từ ô <input type="number" id="titleCell" value="4" min="1" max="18"></label>
                 <label>Đầu đoạn từ ô <input type="number" id="paraCell" value="2" min="1" max="18"></label>
+            </div>
+            <div class="color-opts">
+                <span class="opt-title">Màu chữ</span>
+                <div class="swatches" id="swatches" role="radiogroup" aria-label="Màu chữ">
+                    <button type="button" class="swatch" role="radio" aria-checked="true"  data-color="#0c2461" style="--c:#0c2461" title="Xanh đen"></button>
+                    <button type="button" class="swatch" role="radio" aria-checked="false" data-color="#1d4ed8" style="--c:#1d4ed8" title="Xanh dương"></button>
+                    <button type="button" class="swatch" role="radio" aria-checked="false" data-color="#111111" style="--c:#111111" title="Đen"></button>
+                    <button type="button" class="swatch" role="radio" aria-checked="false" data-color="#c8102e" style="--c:#c8102e" title="Đỏ"></button>
+                    <button type="button" class="swatch" role="radio" aria-checked="false" data-color="#15803d" style="--c:#15803d" title="Xanh lá"></button>
+                    <button type="button" class="swatch" role="radio" aria-checked="false" data-color="#6d28d9" style="--c:#6d28d9" title="Tím"></button>
+                </div>
+                <label class="custom-color" title="Chọn màu khác"><input type="color" id="inkColor" value="#0c2461"><span>Màu khác</span></label>
             </div>
             <div class="shift-opts">
                 <span class="opt-title">Dịch chữ ngang</span>
@@ -838,6 +865,11 @@
 
     function fontFamilyNow() { return outputEl.style.fontFamily || OUTPUT_FONT_STACK; }
     function fontSpec(mm, S) { return (mm * S).toFixed(2) + 'px ' + fontFamilyNow(); }
+    function inkColor() { const v = $('inkColor').value; return /^#[0-9a-f]{6}$/i.test(v) ? v : C_INK; }
+    function inkRgba(a) {
+        const h = inkColor();
+        return 'rgba(' + parseInt(h.slice(1, 3), 16) + ',' + parseInt(h.slice(3, 5), 16) + ',' + parseInt(h.slice(5, 7), 16) + ',' + a + ')';
+    }
 
     // Vẽ một đoạn chữ (đã đổi sang nét nối) tại x, y (mm), trả về x kết thúc (mm)
     function hText(ctx, S, str, x, y, color, sizeMm) {
@@ -994,8 +1026,8 @@
             const shiftMm = ((parseFloat($('shiftPx').value) || 0) * 25.4) / 96;    // dịch chữ ngang (px -> mm)
             const k = Math.tan(parseFloat($('slantSel').value) * Math.PI / 180);   // 0 = thẳng
             const wt = $('weightSel').value;                                       // normal | bold | faint
-            ctx.fillStyle = wt === 'faint' ? C_FAINT : C_INK;
-            ctx.strokeStyle = C_INK; ctx.lineWidth = 0.28 * S; ctx.lineJoin = 'round';
+            ctx.fillStyle = wt === 'faint' ? inkRgba(0.28) : inkColor();
+            ctx.strokeStyle = inkColor(); ctx.lineWidth = 0.28 * S; ctx.lineJoin = 'round';
             all.slice(p * rows, (p + 1) * rows).forEach(function (item, i) {
                 const by = (L.top + (i + 1) * PG.CELL) * S;   // chữ đứng trên đường đậm
                 const bx = (PG.LEFT + item.x + shiftMm) * S;
@@ -1046,6 +1078,20 @@
     });
     (function () { const v = store.get('titleChk'); if (v !== null) $('titleChk').checked = (v === '1'); })();
     $('titleChk').addEventListener('change', function () { store.set('titleChk', $('titleChk').checked ? '1' : '0'); schedulePages(); });
+    (function () {                                   // màu chữ
+        const input = $('inkColor'), sw = Array.from(document.querySelectorAll('#swatches .swatch'));
+        function setInk(c, save) {
+            if (!/^#[0-9a-f]{6}$/i.test(c)) return;
+            input.value = c.toLowerCase();
+            sw.forEach(function (b) { b.setAttribute('aria-checked', b.dataset.color.toLowerCase() === c.toLowerCase() ? 'true' : 'false'); });
+            if (save !== false) store.set('inkColor', c.toLowerCase());
+            schedulePages();
+        }
+        sw.forEach(function (b) { b.addEventListener('click', function () { setInk(b.dataset.color); }); });
+        input.addEventListener('input', function () { setInk(input.value); });
+        const saved = store.get('inkColor');
+        setInk(saved && /^#[0-9a-f]{6}$/i.test(saved) ? saved : input.value, false);
+    })();
     (function () {                                   // dịch chữ sang trái / phải theo px
         const num = $('shiftPx'), rng = $('shiftRange');
         function setShift(v, save) {
